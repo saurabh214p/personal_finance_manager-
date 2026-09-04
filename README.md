@@ -3,6 +3,7 @@
 A Spring Boot 3 REST API for securely tracking personal income, expenses, categories, savings goals, and financial reports. Authentication is session-cookie based and financial data is isolated to the signed-in user.
 
 - **Live URL:** [https://personal-finance-manager-hbrz.onrender.com/api](https://personal-finance-manager-hbrz.onrender.com/api)
+- **Swagger UI:** [https://personal-finance-manager-hbrz.onrender.com/swagger-ui/index.html](https://personal-finance-manager-hbrz.onrender.com/swagger-ui/index.html)
 
 ## Technology
 

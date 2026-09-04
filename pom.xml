@@ -53,6 +53,13 @@
 			<artifactId>spring-boot-starter-validation</artifactId>
 		</dependency>
 
+		<!-- OPENAPI / SWAGGER UI -->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>2.7.0</version>
+		</dependency>
+
 		<!-- H2 DATABASE -->
 		<dependency>
 			<groupId>com.h2database</groupId>

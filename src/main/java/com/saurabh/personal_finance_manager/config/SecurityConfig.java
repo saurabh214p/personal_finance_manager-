@@ -52,7 +52,15 @@ public class SecurityConfig {
     h.csrf(c -> c.disable())
         .authorizeHttpRequests(
             a ->
-                a.requestMatchers("/api/auth/register", "/api/auth/login", "/h2-console/**")
+                a.requestMatchers(
+                        "/api/auth/register",
+                        "/api/auth/login",
+                        "/h2-console/**",
+                        "/v3/api-docs/**",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html",
+                        "/swagger-resources/**",
+                        "/webjars/**")
                     .permitAll()
                     .anyRequest()
                     .authenticated())
