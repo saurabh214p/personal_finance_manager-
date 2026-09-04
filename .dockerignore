@@ -1,0 +1,13 @@
+.git
+.gitignore
+.idea
+target/
+*.log
+local-*.log
+.claude/
+CLAUDE.md
+.skills/
+skills/
+HELP.md
+"Personal Finance Manager - Assignment (4) (1) (1).pdf"
+financial_manager_tests.sh
