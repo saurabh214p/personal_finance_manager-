@@ -20,9 +20,24 @@ public final class GoalDtos {
       @NotBlank String goalName,
       @NotNull @Positive BigDecimal targetAmount,
       @NotNull LocalDate targetDate,
-      LocalDate startDate) {}
+      LocalDate startDate,
+      List<Long> categoryIds) {
 
-  public record UpdateRequest(@Positive BigDecimal targetAmount, LocalDate targetDate) {}
+    public CreateRequest(
+        String goalName, BigDecimal targetAmount, LocalDate targetDate, LocalDate startDate) {
+      this(goalName, targetAmount, targetDate, startDate, null);
+    }
+  }
+
+  public record UpdateRequest(
+      @Positive BigDecimal targetAmount,
+      LocalDate targetDate,
+      List<Long> categoryIds) {
+
+    public UpdateRequest(BigDecimal targetAmount, LocalDate targetDate) {
+      this(targetAmount, targetDate, null);
+    }
+  }
 
   public record Response(
       Long id,
@@ -32,7 +47,30 @@ public final class GoalDtos {
       LocalDate startDate,
       BigDecimal currentProgress,
       Double progressPercentage,
-      BigDecimal remainingAmount) {}
+      BigDecimal remainingAmount,
+      List<Long> categoryIds) {
+
+    public Response(
+        Long id,
+        String goalName,
+        BigDecimal targetAmount,
+        LocalDate targetDate,
+        LocalDate startDate,
+        BigDecimal currentProgress,
+        Double progressPercentage,
+        BigDecimal remainingAmount) {
+      this(
+          id,
+          goalName,
+          targetAmount,
+          targetDate,
+          startDate,
+          currentProgress,
+          progressPercentage,
+          remainingAmount,
+          List.of());
+    }
+  }
 
   public record ListResponse(List<Response> goals) {}
 }
