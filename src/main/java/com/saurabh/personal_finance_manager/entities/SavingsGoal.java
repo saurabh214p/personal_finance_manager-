@@ -10,6 +10,8 @@ import com.saurabh.personal_finance_manager.services.*;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -37,5 +39,8 @@ public class SavingsGoal {
   @ManyToOne(fetch = FetchType.EAGER)
   @JoinColumn(nullable = false)
   private User user;
+
+  @OneToMany(mappedBy = "savingsGoal", fetch = FetchType.EAGER)
+  private List<Category> categories = new ArrayList<>();
 }
 

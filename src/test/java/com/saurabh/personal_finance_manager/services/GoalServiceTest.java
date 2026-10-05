@@ -11,8 +11,10 @@ import com.saurabh.personal_finance_manager.entities.SavingsGoal;
 import com.saurabh.personal_finance_manager.entities.Transaction;
 import com.saurabh.personal_finance_manager.entities.User;
 import com.saurabh.personal_finance_manager.exceptions.BadRequestException;
+import com.saurabh.personal_finance_manager.exceptions.ConflictException;
 import com.saurabh.personal_finance_manager.exceptions.ForbiddenException;
 import com.saurabh.personal_finance_manager.exceptions.NotFoundException;
+import com.saurabh.personal_finance_manager.repositories.CategoryRepository;
 import com.saurabh.personal_finance_manager.repositories.GoalRepository;
 import com.saurabh.personal_finance_manager.repositories.TransactionRepository;
 import com.saurabh.personal_finance_manager.security.CurrentUserProvider;
@@ -34,6 +36,7 @@ class GoalServiceTest {
   @Mock private GoalRepository goalRepository;
   @Mock private TransactionRepository transactionRepository;
   @Mock private CurrentUserProvider currentUserProvider;
+  @Mock private CategoryRepository categoryRepository;
 
   @InjectMocks private GoalServiceImpl goalService;
 
@@ -90,6 +93,10 @@ class GoalServiceTest {
   void testList_CalculatesProgress() {
     when(currentUserProvider.current()).thenReturn(mockUser);
 
+    Category incomeCat = new Category();
+    incomeCat.setId(10L);
+    incomeCat.setType(CategoryType.INCOME);
+
     SavingsGoal g = new SavingsGoal();
     g.setId(1L);
     g.setGoalName("Emergency");
@@ -97,11 +104,10 @@ class GoalServiceTest {
     g.setStartDate(LocalDate.of(2024, 1, 1));
     g.setTargetDate(LocalDate.now().plusYears(1));
     g.setUser(mockUser);
+    g.setCategories(List.of(incomeCat));
 
     when(goalRepository.findByUserIdOrderByIdDesc(1L)).thenReturn(List.of(g));
 
-    Category incomeCat = new Category();
-    incomeCat.setType(CategoryType.INCOME);
     Transaction t1 = new Transaction();
     t1.setAmount(BigDecimal.valueOf(6550));
     t1.setCategory(incomeCat);
@@ -200,4 +206,159 @@ class GoalServiceTest {
 
     assertThrows(NotFoundException.class, () -> goalService.delete(99L));
   }
+
+  @Test
+  void testProgress_ZeroWhenNoCategoriesAssigned() {
+    when(currentUserProvider.current()).thenReturn(mockUser);
+
+    SavingsGoal g = new SavingsGoal();
+    g.setId(1L);
+    g.setGoalName("Goal without Categories");
+    g.setTargetAmount(BigDecimal.valueOf(5000));
+    g.setStartDate(LocalDate.of(2024, 1, 1));
+    g.setTargetDate(LocalDate.now().plusYears(1));
+    g.setUser(mockUser);
+    g.setCategories(Collections.emptyList());
+
+    when(goalRepository.findById(1L)).thenReturn(Optional.of(g));
+
+    GoalDtos.Response res = goalService.get(1L);
+    assertEquals(BigDecimal.ZERO, res.currentProgress());
+    assertEquals(0.0, res.progressPercentage());
+    assertEquals(BigDecimal.valueOf(5000), res.remainingAmount());
+    assertTrue(res.categoryIds().isEmpty());
+  }
+
+  @Test
+  void testProgress_CalculatesOnlyForAssignedCategories() {
+    when(currentUserProvider.current()).thenReturn(mockUser);
+
+    Category assignedCat = new Category();
+    assignedCat.setId(10L);
+    assignedCat.setName("Savings Deposit");
+    assignedCat.setType(CategoryType.INCOME);
+
+    Category unassignedCat = new Category();
+    unassignedCat.setId(20L);
+    unassignedCat.setName("Unrelated Bonus");
+    unassignedCat.setType(CategoryType.INCOME);
+
+    SavingsGoal g = new SavingsGoal();
+    g.setId(1L);
+    g.setGoalName("Vacation");
+    g.setTargetAmount(BigDecimal.valueOf(1000));
+    g.setStartDate(LocalDate.of(2024, 1, 1));
+    g.setTargetDate(LocalDate.now().plusYears(1));
+    g.setUser(mockUser);
+    g.setCategories(List.of(assignedCat));
+
+    when(goalRepository.findById(1L)).thenReturn(Optional.of(g));
+
+    Transaction tAssigned = new Transaction();
+    tAssigned.setAmount(BigDecimal.valueOf(300));
+    tAssigned.setCategory(assignedCat);
+
+    Transaction tUnassigned = new Transaction();
+    tUnassigned.setAmount(BigDecimal.valueOf(500));
+    tUnassigned.setCategory(unassignedCat);
+
+    when(transactionRepository.findByUserIdAndDeletedFalseAndDateBetween(eq(1L), eq(LocalDate.of(2024, 1, 1)), any()))
+        .thenReturn(List.of(tAssigned, tUnassigned));
+
+    GoalDtos.Response res = goalService.get(1L);
+    assertEquals(BigDecimal.valueOf(300), res.currentProgress());
+    assertEquals(30.0, res.progressPercentage());
+    assertEquals(BigDecimal.valueOf(700), res.remainingAmount());
+    assertEquals(List.of(10L), res.categoryIds());
+  }
+
+  @Test
+  void testCreate_WithCategories_Success() {
+    when(currentUserProvider.current()).thenReturn(mockUser);
+
+    Category cat = new Category();
+    cat.setId(10L);
+    cat.setName("Goal Fund");
+    cat.setType(CategoryType.INCOME);
+    cat.setCustom(true);
+    cat.setUser(mockUser);
+
+    when(categoryRepository.findById(10L)).thenReturn(Optional.of(cat));
+
+    SavingsGoal saved = new SavingsGoal();
+    saved.setId(1L);
+    saved.setGoalName("House");
+    saved.setTargetAmount(BigDecimal.valueOf(50000));
+    saved.setTargetDate(LocalDate.now().plusYears(2));
+    saved.setStartDate(LocalDate.now());
+    saved.setUser(mockUser);
+
+    when(goalRepository.save(any(SavingsGoal.class))).thenReturn(saved);
+    when(transactionRepository.findByUserIdAndDeletedFalseAndDateBetween(eq(1L), any(), any()))
+        .thenReturn(Collections.emptyList());
+
+    GoalDtos.CreateRequest req =
+        new GoalDtos.CreateRequest(
+            "House", BigDecimal.valueOf(50000), LocalDate.now().plusYears(2), LocalDate.now(), List.of(10L));
+
+    GoalDtos.Response res = goalService.create(req);
+    assertNotNull(res);
+    assertEquals("House", res.goalName());
+    verify(categoryRepository).save(cat);
+    assertEquals(saved, cat.getSavingsGoal());
+  }
+
+  @Test
+  void testCreate_CategoryAlreadyAssignedToAnotherGoal_ThrowsConflict() {
+    when(currentUserProvider.current()).thenReturn(mockUser);
+
+    SavingsGoal otherGoal = new SavingsGoal();
+    otherGoal.setId(99L);
+
+    Category cat = new Category();
+    cat.setId(10L);
+    cat.setName("Already Used");
+    cat.setSavingsGoal(otherGoal);
+
+    when(categoryRepository.findById(10L)).thenReturn(Optional.of(cat));
+
+    SavingsGoal saved = new SavingsGoal();
+    saved.setId(1L);
+    saved.setGoalName("New Goal");
+    saved.setTargetAmount(BigDecimal.valueOf(5000));
+    saved.setTargetDate(LocalDate.now().plusYears(1));
+    saved.setUser(mockUser);
+
+    when(goalRepository.save(any(SavingsGoal.class))).thenReturn(saved);
+
+    GoalDtos.CreateRequest req =
+        new GoalDtos.CreateRequest(
+            "New Goal", BigDecimal.valueOf(5000), LocalDate.now().plusYears(1), null, List.of(10L));
+
+    assertThrows(ConflictException.class, () -> goalService.create(req));
+  }
+
+  @Test
+  void testDelete_UnassignsCategories() {
+    when(currentUserProvider.current()).thenReturn(mockUser);
+
+    Category cat = new Category();
+    cat.setId(10L);
+    cat.setName("Fund");
+
+    SavingsGoal g = new SavingsGoal();
+    g.setId(1L);
+    g.setUser(mockUser);
+    cat.setSavingsGoal(g);
+    g.setCategories(new java.util.ArrayList<>(List.of(cat)));
+
+    when(goalRepository.findById(1L)).thenReturn(Optional.of(g));
+
+    goalService.delete(1L);
+
+    assertNull(cat.getSavingsGoal());
+    verify(categoryRepository).save(cat);
+    verify(goalRepository).delete(g);
+  }
 }
+
